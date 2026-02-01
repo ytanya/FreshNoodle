@@ -1,0 +1,278 @@
+@page "/admin/customers"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject CustomerApiService CustomerService
+
+<PageTitle>Customer Management - FreshNoodle</PageTitle>
+
+<div class="container-fluid mt-5 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Customer Management</h2>
+        <button class="btn btn-primary" @onclick="PrepareNewCustomer">
+            <i class="bi bi-plus-lg"></i> Add New Customer
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success mt-3">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
+
+    @if (showForm)
+    {
+        <div class="card mb-4 shadow-sm border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">@(editingCustomer.Id == 0 ? "Create New Customer" : $"Edit Customer: {editingCustomer.Name}")</h4>
+                <button type="button" class="btn-close btn-close-white" @onclick="CancelEdit"></button>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Customer Name</label>
+                        <input type="text" class="form-control" placeholder="Company or Individual Name" @bind="editingCustomer.Name" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Customer Type</label>
+                        <select class="form-select" @bind="editingCustomer.CustomerTypeId">
+                            <option value="0">-- Select Type --</option>
+                            @foreach (var type in customerTypes.Where(t => t.IsActive || t.Id == editingCustomer.CustomerTypeId))
+                            {
+                                <option value="@type.Id">@type.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Price Tier / Type</label>
+                        <select class="form-select" @bind="editingCustomer.PriceTypeId">
+                            <option value="0">-- Select Price Tier --</option>
+                            @foreach (var type in priceTypes.Where(t => t.IsActive || t.Id == editingCustomer.PriceTypeId))
+                            {
+                                <option value="@type.Id">@type.Name (@type.DefaultPricePerKg.ToString("C2")/kg)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Payment Method</label>
+                        <select class="form-select" @bind="editingCustomer.PaymentTypeId">
+                            <option value="0">-- Select Payment Method --</option>
+                            @foreach (var type in paymentTypes.Where(t => t.IsActive || t.Id == editingCustomer.PaymentTypeId))
+                            {
+                                <option value="@type.Id">@type.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Priority Order</label>
+                        <input type="number" class="form-control" placeholder="Optional" @bind="editingCustomer.PriorityOrder" />
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="skipDay" @bind="editingCustomer.SkipDay" />
+                            <label class="form-check-label" for="skipDay">Skip Day Delivery</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="custActive" @bind="editingCustomer.IsActive" />
+                            <label class="form-check-label" for="custActive">Account Active</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button class="btn btn-success w-100" @onclick="SaveCustomer" disabled="@isLoading">
+                            @(editingCustomer.Id == 0 ? "Create" : "Update")
+                        </button>
+                        <button class="btn btn-secondary w-100" @onclick="CancelEdit">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-3">
+            <h4 class="mb-0">Customer Directory</h4>
+            <div class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm" placeholder="Search customer..." @bind="searchQuery" @bind:event="oninput" style="width: 250px;" />
+                <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            @if (customers == null)
+            {
+                <div class="p-5 text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Loading customers...</p></div>
+            }
+            else if (!customers.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-person-x" style="font-size: 3rem;"></i>
+                    <p class="mt-2">No customers found.</p>
+                </div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="px-4">Customer Name</th>
+                            <th>Type</th>
+                            <th>Pricing</th>
+                            <th>Payment</th>
+                            <th>Flags</th>
+                            <th>Status</th>
+                            <th class="text-end px-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cust in FilteredCustomers)
+                        {
+                            <tr>
+                                <td class="px-4">
+                                    <div class="fw-bold">@cust.Name</div>
+                                    <small class="text-muted">ID: @cust.Id | Priority: @(cust.PriorityOrder?.ToString() ?? "N/A")</small>
+                                </td>
+                                <td><span class="badge bg-light text-dark border">@cust.CustomerTypeName</span></td>
+                                <td><span class="badge bg-info text-dark">@cust.PriceTypeName</span></td>
+                                <td><span class="badge bg-secondary text-white">@cust.PaymentTypeName</span></td>
+                                <td>
+                                    @if (cust.SkipDay)
+                                    {
+                                        <span class="badge bg-warning text-dark" title="Skip Day Delivery">Skip Day</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @(cust.IsActive ? "bg-success" : "bg-danger")">
+                                        @(cust.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td class="text-end px-4">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => EditCustomer(cust)">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CustomerViewModel>? customers;
+    private List<CustomerTypeViewModel> customerTypes = new();
+    private List<PriceTypeViewModel> priceTypes = new();
+    private List<PaymentTypeViewModel> paymentTypes = new();
+    
+    private CustomerViewModel editingCustomer = new();
+    private bool showForm = false;
+    private bool isLoading = false;
+    private string successMessage = string.Empty;
+    private string errorMessage = string.Empty;
+    private string searchQuery = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try 
+        {
+            customers = await CustomerService.GetCustomersAsync();
+            customerTypes = await CustomerService.GetCustomerTypesAsync();
+            priceTypes = await CustomerService.GetPriceTypesAsync();
+            paymentTypes = await CustomerService.GetPaymentTypesAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<CustomerViewModel> FilteredCustomers => customers?
+        .Where(c => string.IsNullOrEmpty(searchQuery) || c.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+        ?? Enumerable.Empty<CustomerViewModel>();
+
+    private void PrepareNewCustomer()
+    {
+        editingCustomer = new CustomerViewModel { IsActive = true };
+        showForm = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private void EditCustomer(CustomerViewModel cust)
+    {
+        editingCustomer = new CustomerViewModel
+        {
+            Id = cust.Id,
+            Name = cust.Name,
+            CustomerTypeId = cust.CustomerTypeId,
+            PriceTypeId = cust.PriceTypeId,
+            PaymentTypeId = cust.PaymentTypeId,
+            SkipDay = cust.SkipDay,
+            PriorityOrder = cust.PriorityOrder,
+            IsActive = cust.IsActive
+        };
+        showForm = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private void CancelEdit()
+    {
+        showForm = false;
+        editingCustomer = new();
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private async Task SaveCustomer()
+    {
+        if (string.IsNullOrEmpty(editingCustomer.Name) || 
+            editingCustomer.CustomerTypeId == 0 || 
+            editingCustomer.PriceTypeId == 0 || 
+            editingCustomer.PaymentTypeId == 0)
+        {
+            errorMessage = "Please fill in Name and select all Type fields.";
+            return;
+        }
+
+        isLoading = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+
+        AuthResponseModel result;
+        if (editingCustomer.Id == 0)
+        {
+            result = await CustomerService.CreateCustomerAsync(editingCustomer);
+        }
+        else
+        {
+            result = await CustomerService.UpdateCustomerAsync(editingCustomer.Id, editingCustomer);
+        }
+
+        if (result.Success)
+        {
+            successMessage = editingCustomer.Id == 0 ? "Customer created successfully." : "Customer updated successfully.";
+            showForm = false;
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = result.Message;
+        }
+
+        isLoading = false;
+    }
+}

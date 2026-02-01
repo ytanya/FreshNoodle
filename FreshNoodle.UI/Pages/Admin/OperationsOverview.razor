@@ -1,0 +1,122 @@
+@page "/admin/operations"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject AuthApiService AuthService
+
+<PageTitle>Operations Overview - FreshNoodle</PageTitle>
+
+<div class="container-fluid py-4 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Operations Overview</h2>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadOperationsData">
+            <i class="bi bi-arrow-clockwise me-1"></i> Refresh Stats
+        </button>
+    </div>
+
+    <!-- Story D3.1: Today Production Overview -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 border-start border-primary border-5">
+                <div class="card-body py-4 d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                        <i class="bi bi-box-seam text-primary" style="font-size: 2rem;"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Total Produced Today</div>
+                        <div class="h2 fw-bold mb-0">@(stats?.TotalProduced ?? 0) <small class="text-muted h6">units</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 border-start border-info border-5">
+                <div class="card-body py-4 d-flex align-items-center">
+                    <div class="bg-info bg-opacity-10 p-3 rounded-circle me-3">
+                        <i class="bi bi-shop text-info" style="font-size: 2rem;"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Retail Reserved</div>
+                        <div class="h2 fw-bold mb-0">@(stats?.RetailReserved ?? 0) <small class="text-muted h6">units</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Story D3.2: Customer Delivery List -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Today's Delivery Schedule</h5>
+            <span class="badge bg-light text-dark">@DateTime.Today.ToString("dddd, MMM dd")</span>
+        </div>
+        <div class="card-body p-0">
+            @if (stats == null)
+            {
+                <div class="p-5 text-center"><div class="spinner-border text-primary" role="status"></div></div>
+            }
+            else if (!stats.Deliveries.Any())
+            {
+                <div class="p-5 text-center text-muted">No deliveries scheduled for today.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="px-4">Priority</th>
+                                <th>Customer Name</th>
+                                <th>Delivery Status</th>
+                                <th class="text-end px-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var delivery in stats.Deliveries)
+                            {
+                                <tr>
+                                    <td class="px-4">
+                                        <span class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary">
+                                            #@(delivery.Priority?.ToString() ?? "-")
+                                        </span>
+                                    </td>
+                                    <td class="fw-bold">@delivery.CustomerName</td>
+                                    <td>
+                                        <span class="badge @GetStatusBadgeClass(delivery.Status)">
+                                            @delivery.Status
+                                        </span>
+                                    </td>
+                                    <td class="text-end px-4">
+                                        <button class="btn btn-sm btn-outline-secondary">Details</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private OperationsStatsViewModel? stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOperationsData();
+    }
+
+    private async Task LoadOperationsData()
+    {
+        stats = await AuthService.GetOperationsStatsAsync();
+    }
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Delivered" => "bg-success",
+        "Pending" => "bg-warning text-dark",
+        "In Progress" => "bg-info text-white",
+        "Skipped" => "bg-secondary bg-opacity-50",
+        _ => "bg-light text-dark"
+    };
+}

@@ -1,0 +1,172 @@
+@page "/admin/roles"
+@using FreshNoodle.UI.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject AuthApiService AuthService
+
+<PageTitle>Role Management - FreshNoodle</PageTitle>
+
+<div class="container mt-5">
+    <h2>Role Management</h2>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>@(editingRole.Id == 0 ? "Create New Role" : $"Edit Role: {editingRole.Name}")</h4>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Role Name</label>
+                    <input type="text" class="form-control" placeholder="e.g. Sales" @bind="editingRole.Name" />
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" placeholder="Role description" @bind="editingRole.Description" />
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="roleActive" @bind="editingRole.IsActive" />
+                        <label class="form-check-label" for="roleActive">Active</label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    @if (editingRole.Id == 0)
+                    {
+                        <button class="btn btn-success w-100" @onclick="SaveRole" disabled="@isLoading">Create</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary w-100" @onclick="SaveRole" disabled="@isLoading">Update</button>
+                        <button class="btn btn-secondary w-100" @onclick="CancelEdit">Cancel</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h4>Existing Roles</h4>
+        </div>
+        <div class="card-body">
+            @if (roles == null)
+            {
+                <p>Loading roles...</p>
+            }
+            else
+            {
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var role in roles)
+                        {
+                            <tr>
+                                <td><strong>@role.Name</strong></td>
+                                <td>@role.Description</td>
+                                <td>
+                                    <span class="badge @(role.IsActive ? "bg-success" : "bg-danger")">
+                                        @(role.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => EditRole(role)">Edit</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<RoleViewModel>? roles;
+    private RoleViewModel editingRole = new();
+    private bool isLoading = false;
+    private string successMessage = string.Empty;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoles();
+    }
+
+    private async Task LoadRoles()
+    {
+        roles = await AuthService.GetRolesAsync();
+    }
+
+    private void EditRole(RoleViewModel role)
+    {
+        editingRole = new RoleViewModel
+        {
+            Id = role.Id,
+            Name = role.Name,
+            Description = role.Description,
+            IsActive = role.IsActive
+        };
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private void CancelEdit()
+    {
+        editingRole = new RoleViewModel();
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private async Task SaveRole()
+    {
+        if (string.IsNullOrEmpty(editingRole.Name))
+        {
+            errorMessage = "Role name is required.";
+            return;
+        }
+
+        isLoading = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+
+        AuthResponseModel result;
+        if (editingRole.Id == 0)
+        {
+            result = await AuthService.CreateRoleAsync(editingRole);
+        }
+        else
+        {
+            result = await AuthService.UpdateRoleAsync(editingRole.Id, editingRole);
+        }
+
+        if (result.Success)
+        {
+            successMessage = editingRole.Id == 0 ? "Role created successfully." : "Role updated successfully.";
+            editingRole = new();
+            await LoadRoles();
+        }
+        else
+        {
+            errorMessage = result.Message;
+        }
+
+        isLoading = false;
+    }
+}

@@ -1,0 +1,34 @@
+@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Home - FreshNoodle</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="container mt-5">
+            <div class="jumbotron">
+                <h1 class="display-4">Welcome to FreshNoodle!</h1>
+                <p class="lead">Hello, @context.User.Identity?.Name!</p>
+                <hr class="my-4">
+                <p>Manage your products efficiently with our simple and intuitive interface.</p>
+                <p class="lead">
+                    <a class="btn btn-primary btn-lg" href="/products" role="button">View Products</a>
+                </p>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="container mt-5">
+            <div class="jumbotron">
+                <h1 class="display-4">Welcome to FreshNoodle!</h1>
+                <p class="lead">Your product management solution.</p>
+                <hr class="my-4">
+                <p>Please login or register to get started.</p>
+                <p class="lead">
+                    <a class="btn btn-primary btn-lg" href="/login" role="button">Login</a>
+                    <a class="btn btn-secondary btn-lg" href="/register" role="button">Register</a>
+                </p>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>

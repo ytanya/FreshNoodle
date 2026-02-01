@@ -1,0 +1,452 @@
+@page "/admin/users"
+@using FreshNoodle.UI.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject AuthApiService AuthService
+
+<PageTitle>User Management - FreshNoodle</PageTitle>
+
+<div class="container mt-5">
+    <h2>User Management</h2>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4>Create New User</h4>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-control" @bind="newUser.Username" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" @bind="newUser.Email" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Phone</label>
+                    <input type="text" class="form-control" @bind="newUser.PhoneNumber" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="@(showNewUserPassword ? "text" : "password")" class="form-control" @bind="newUser.Password" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => showNewUserPassword = !showNewUserPassword">
+                            <i class="bi @(showNewUserPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Roles</label>
+                    <div class="border rounded p-1" style="max-height: 80px; overflow-y: auto;">
+                        @foreach (var role in roles.Where(r => r.IsActive))
+                        {
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="role_@role.Id" 
+                                       @onchange="@(e => ToggleRoleInNewUser(role.Id, e.Value))" />
+                                <label class="form-check-label" for="role_@role.Id">@role.Name</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-12 text-end">
+                    <button class="btn btn-success" @onclick="CreateUser" disabled="@isLoading">Create User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtering Section -->
+    <div class="card mb-4 bg-light">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-center">
+                <div class="col-auto"><strong>Filter by:</strong></div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm" @bind="filterRole">
+                        <option value="">All Roles</option>
+                        @foreach (var roleName in roles.Select(r => r.Name).Distinct())
+                        {
+                            <option value="@roleName">@roleName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm" @bind="filterStatus">
+                        <option value="all">All Status</option>
+                        <option value="active">Active Only</option>
+                        <option value="inactive">Inactive Only</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <input type="text" class="form-control form-control-sm" placeholder="Search username or email..." @bind="searchQuery" @bind:event="oninput" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h4>Existing Users</h4>
+        </div>
+        <div class="card-body p-0">
+            @if (users == null)
+            {
+                <div class="p-4 text-center"><p>Loading users...</p></div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Contact Info</th>
+                            <th>Roles</th>
+                            <th>Status</th>
+                            <th class="text-end px-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in FilteredUsers)
+                        {
+                            <tr>
+                                <td class="px-3">
+                                    <div class="fw-bold">@user.Username</div>
+                                    <small class="text-muted">ID: @user.Id</small>
+                                </td>
+                                <td>
+                                    <div>@user.Email</div>
+                                    <small class="text-secondary">@user.PhoneNumber</small>
+                                </td>
+                                <td>
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <span class="badge bg-info text-dark me-1">@role</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @(user.IsActive ? "bg-success" : "bg-danger")">
+                                        @(user.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td class="text-end px-4">
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => PromptEditProfile(user)" title="Edit Profile">
+                                            <i class="bi bi-pencil"></i> Profile
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-info" @onclick="() => PromptEditRoles(user)" title="Edit Roles">
+                                            <i class="bi bi-shield-lock"></i> Roles
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning" @onclick="() => PromptResetPassword(user)" title="Reset Password">
+                                            <i class="bi bi-key"></i> Pwd
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@if (showResetDialog)
+{
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">Reset Password - @selectedUser?.Username</h5>
+                    <button type="button" class="btn-close" @onclick="() => showResetDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        <div class="input-group">
+                            <input type="@(showResetPassword ? "text" : "password")" class="form-control" @bind="newPassword" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="() => showResetPassword = !showResetPassword">
+                                <i class="bi @(showResetPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showResetDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="ResetPassword">Reset Password</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@if (showRolesDialog)
+{
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-info">
+                <div class="modal-header bg-info text-dark">
+                    <h5 class="modal-title">Edit Roles - @selectedUser?.Username</h5>
+                    <button type="button" class="btn-close" @onclick="() => showRolesDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Select roles (inactive roles hidden):</p>
+                    <div class="list-group">
+                        @foreach (var role in roles.Where(r => r.IsActive))
+                        {
+                            <label class="list-group-item">
+                                <input class="form-check-input me-1" type="checkbox" 
+                                       checked="@selectedRoleIds.Contains(role.Id)"
+                                       @onchange="@(e => ToggleRoleInEdit(role.Id, e.Value))" />
+                                @role.Name
+                                <small class="text-muted d-block">@role.Description</small>
+                            </label>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showRolesDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-info" @onclick="UpdateRoles">Save Roles</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@if (showEditProfileDialog)
+{
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-primary">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit Profile - @selectedUser?.Username</h5>
+                    <button type="button" class="btn-close" @onclick="() => showEditProfileDialog = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" @bind="editProfileModel.Username" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" @bind="editProfileModel.Email" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-control" @bind="editProfileModel.PhoneNumber" />
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="userActive" @bind="editProfileModel.IsActive" />
+                        <label class="form-check-label" for="userActive">Account Active</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showEditProfileDialog = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="UpdateProfile">Save Profile</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private List<UserViewModel>? users;
+    private List<RoleViewModel> roles = new();
+    private CreateUserViewModel newUser = new();
+    private bool isLoading = false;
+    private string successMessage = string.Empty;
+    private string errorMessage = string.Empty;
+
+    // Filters
+    private string filterRole = "";
+    private string filterStatus = "all";
+    private string searchQuery = "";
+
+    // Dialogs
+    private bool showResetDialog = false;
+    private bool showRolesDialog = false;
+    private bool showEditProfileDialog = false;
+    
+    private UserViewModel? selectedUser;
+    private string newPassword = string.Empty;
+    private List<int> selectedRoleIds = new();
+    private UpdateUserViewModel editProfileModel = new();
+    private bool showNewUserPassword = false;
+    private bool showResetPassword = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        users = await AuthService.GetAllUsersAsync();
+        roles = await AuthService.GetRolesAsync();
+    }
+
+    private IEnumerable<UserViewModel> FilteredUsers => users?
+        .Where(u => string.IsNullOrEmpty(filterRole) || u.Roles.Contains(filterRole))
+        .Where(u => filterStatus == "all" || (filterStatus == "active" ? u.IsActive : !u.IsActive))
+        .Where(u => string.IsNullOrEmpty(searchQuery) || 
+                   u.Username.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) || 
+                   u.Email.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ?? Enumerable.Empty<UserViewModel>();
+
+    private void ToggleRoleInNewUser(int roleId, object? isChecked)
+    {
+        if (isChecked is bool checkedValue && checkedValue)
+        {
+            if (!newUser.RoleIds.Contains(roleId)) newUser.RoleIds.Add(roleId);
+        }
+        else
+        {
+            newUser.RoleIds.Remove(roleId);
+        }
+    }
+
+    private void ToggleRoleInEdit(int roleId, object? isChecked)
+    {
+        if (isChecked is bool checkedValue && checkedValue)
+        {
+            if (!selectedRoleIds.Contains(roleId)) selectedRoleIds.Add(roleId);
+        }
+        else
+        {
+            selectedRoleIds.Remove(roleId);
+        }
+    }
+
+    private async Task CreateUser()
+    {
+        if (string.IsNullOrEmpty(newUser.Username) || string.IsNullOrEmpty(newUser.Email) || string.IsNullOrEmpty(newUser.Password))
+        {
+            errorMessage = "Please fill in required fields.";
+            return;
+        }
+
+        isLoading = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+
+        var result = await AuthService.CreateUserAsync(newUser);
+        if (result.Success)
+        {
+            successMessage = "User created successfully.";
+            newUser = new();
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = result.Message;
+        }
+
+        isLoading = false;
+    }
+
+    private void PromptEditProfile(UserViewModel user)
+    {
+        selectedUser = user;
+        editProfileModel = new UpdateUserViewModel
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            PhoneNumber = user.PhoneNumber,
+            IsActive = user.IsActive
+        };
+        showEditProfileDialog = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private async Task UpdateProfile()
+    {
+        if (selectedUser == null) return;
+
+        isLoading = true;
+        var success = await AuthService.UpdateUserAsync(selectedUser.Id, editProfileModel);
+        
+        if (success)
+        {
+            successMessage = $"Profile for {selectedUser.Username} updated successfully.";
+            showEditProfileDialog = false;
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = "Failed to update user profile.";
+        }
+        isLoading = false;
+    }
+
+    private void PromptEditRoles(UserViewModel user)
+    {
+        selectedUser = user;
+        selectedRoleIds = roles
+            .Where(r => user.Roles.Contains(r.Name))
+            .Select(r => r.Id)
+            .ToList();
+        showRolesDialog = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private async Task UpdateRoles()
+    {
+        if (selectedUser == null) return;
+
+        isLoading = true;
+        var success = await AuthService.UpdateUserRolesAsync(selectedUser.Id, selectedRoleIds);
+        
+        if (success)
+        {
+            successMessage = $"Roles for {selectedUser.Username} updated successfully.";
+            showRolesDialog = false;
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = "Failed to update user roles.";
+        }
+        isLoading = false;
+    }
+
+    private void PromptResetPassword(UserViewModel user)
+    {
+        selectedUser = user;
+        newPassword = string.Empty;
+        showResetDialog = true;
+    }
+
+    private async Task ResetPassword()
+    {
+        if (selectedUser == null || string.IsNullOrEmpty(newPassword)) return;
+
+        isLoading = true;
+        var success = await AuthService.ResetPasswordAsync(selectedUser.Id, newPassword);
+        
+        if (success)
+        {
+            successMessage = $"Password for {selectedUser.Username} reset successfully.";
+            showResetDialog = false;
+        }
+        else
+        {
+            errorMessage = "Failed to reset password.";
+        }
+        isLoading = false;
+    }
+}
+

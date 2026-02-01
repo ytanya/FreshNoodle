@@ -1,0 +1,157 @@
+@page "/admin/financials"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Accounting")]
+@inject AuthApiService AuthService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Financial Overview - FreshNoodle</PageTitle>
+
+<div class="container-fluid py-4 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Financial Overview</h2>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadFinancialData">
+            <i class="bi bi-arrow-clockwise me-1"></i> Refresh Data
+        </button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md">
+            <div class="card h-100 shadow-sm border-0 border-top border-primary border-5">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">Expected Revenue</div>
+                    <div class="h3 fw-bold text-primary mb-0">@(stats?.ExpectedRevenue.ToString("C2") ?? "$0.00")</div>
+                    <div class="mt-2 small text-success">
+                        <i class="bi bi-graph-up me-1"></i> Projecting
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 shadow-sm border-0 border-top border-success border-5">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">Actual Collected</div>
+                    <div class="h3 fw-bold text-success mb-0">@(stats?.ActualCollected.ToString("C2") ?? "$0.00")</div>
+                    <div class="mt-2 small text-muted">
+                        Already Received
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 shadow-sm border-0 border-top border-warning border-5">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">Outstanding</div>
+                    <div class="h3 fw-bold text-warning mb-0">@(stats?.OutstandingBalance.ToString("C2") ?? "$0.00")</div>
+                    <div class="mt-2 small text-secondary">
+                        Pending Payment
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 shadow-sm border-0 border-top border-danger border-5">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">Overdue</div>
+                    <div class="h3 fw-bold text-danger mb-0">@(stats?.OverdueRevenue.ToString("C2") ?? "$0.00")</div>
+                    <div class="mt-2 small text-danger">
+                        <i class="bi bi-exclamation-circle me-1"></i> Delayed
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 shadow-sm border-0 border-top border-info border-5">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase fw-bold mb-1">Unpaid Customers</div>
+                    <div class="h3 fw-bold text-info mb-0">@(stats?.UnpaidCustomers ?? 0)</div>
+                    <div class="mt-2 small text-secondary">
+                        Needs follow up
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Revenue Line Chart -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">Revenue Trend (Last 7 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 350px; position: relative;">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Today's Revenue Bar Chart -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">Today's Revenue by Hour</h5>
+                </div>
+                <div class="card-body">
+                    <div style="height: 350px; position: relative;">
+                        <canvas id="todayRevenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <strong>Notice:</strong> Financial data includes simulated projections and real-time transaction mocks for current session overview.
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private FinancialStatsViewModel? stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFinancialData();
+    }
+
+    private async Task LoadFinancialData()
+    {
+        stats = await AuthService.GetFinancialStatsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (stats != null)
+        {
+            if (stats.RevenueHistory.Any())
+            {
+                var labels = stats.RevenueHistory.Select(p => DateTime.TryParse(p.Date, out var d) ? d.ToString("MMM dd") : p.Date).ToArray();
+                var data = stats.RevenueHistory.Select(p => p.Amount).ToArray();
+                await JSRuntime.InvokeVoidAsync("dashboardHelper.renderRevenueChart", "revenueChart", labels, data);
+            }
+            
+            if (stats.TodayRevenueHistory.Any())
+            {
+                var todayLabels = stats.TodayRevenueHistory.Select(p => p.Date).ToArray();
+                var todayData = stats.TodayRevenueHistory.Select(p => p.Amount).ToArray();
+                await JSRuntime.InvokeVoidAsync("dashboardHelper.renderTodayRevenueChart", "todayRevenueChart", todayLabels, todayData);
+            }
+        }
+    }
+}
+
+<style>
+    .card {
+        border-radius: 12px;
+    }
+    .border-5 {
+        border-top-width: 5px !important;
+    }
+</style>

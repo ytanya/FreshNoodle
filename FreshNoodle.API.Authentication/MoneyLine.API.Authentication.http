@@ -1,0 +1,6 @@
+@MoneyLine.API.Authentication_HostAddress = http://localhost:5208
+
+GET {{MoneyLine.API.Authentication_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,124 @@
+@page "/admin"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject AuthApiService AuthService
+
+<PageTitle>Admin Dashboard - FreshNoodle</PageTitle>
+
+<div class="container-fluid py-4 px-4">
+    <h2 class="mb-4">Admin Dashboard</h2>
+
+    <div class="row g-4 mb-5">
+        <!-- Story D1.1: Dashboard Overview -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 bg-primary text-white">
+                <div class="card-body d-flex flex-column justify-content-center align-items-center py-4">
+                    <i class="bi bi-people-fill mb-2" style="font-size: 2.5rem;"></i>
+                    <h5 class="card-title">Active Customers</h5>
+                    <p class="display-4 fw-bold mb-0">@(stats?.ActiveCustomerCount ?? 0)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 bg-info text-white">
+                <div class="card-body d-flex flex-column justify-content-center align-items-center py-4">
+                    <i class="bi bi-person-badge-fill mb-2" style="font-size: 2.5rem;"></i>
+                    <h5 class="card-title">Active Users</h5>
+                    <p class="display-4 fw-bold mb-0">@(stats?.ActiveUserCount ?? 0)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 @(stats?.IsTodayClosed == true ? "bg-danger" : "bg-success") text-white">
+                <div class="card-body d-flex flex-column justify-content-center align-items-center py-4">
+                    <i class="bi @(stats?.IsTodayClosed == true ? "bi-calendar-x" : "bi-calendar-check") mb-2" style="font-size: 2.5rem;"></i>
+                    <h5 class="card-title">Production Day Status</h5>
+                    <p class="h3 fw-bold mb-0">@(stats?.IsTodayClosed == true ? "CLOSED" : "OPEN")</p>
+                    <small>@DateTime.Today.ToString("dd MMM yyyy")</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <!-- Story D1.2: Master Data Health Indicators -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 border-start border-warning border-5">
+                <div class="card-body">
+                    <h5 class="card-title d-flex justify-content-between align-items-center">
+                        Health Indicators
+                        <i class="bi bi-activity text-warning text-end"></i>
+                    </h5>
+                    <hr />
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Customers with inactive price tiers</span>
+                        <span class="badge @(stats?.CustomersWithNoPriceTypeCount > 0 ? "bg-danger" : "bg-success") rounded-pill px-3">
+                            @(stats?.CustomersWithNoPriceTypeCount ?? 0)
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Inactive payment methods</span>
+                        <span class="badge @(stats?.InactivePaymentTypeCount > 0 ? "bg-warning text-dark" : "bg-success") rounded-pill px-3">
+                            @(stats?.InactivePaymentTypeCount ?? 0)
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Story D1.3: Shortcut Cards -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title">Quick Actions</h5>
+                    <hr />
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <a href="admin/users" class="btn btn-outline-primary w-100 py-3 text-start px-3">
+                                <i class="bi bi-people me-2"></i> Manage Users
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="admin/customers" class="btn btn-outline-primary w-100 py-3 text-start px-3">
+                                <i class="bi bi-person-badge me-2"></i> Manage Customers
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="admin/price-types" class="btn btn-outline-primary w-100 py-3 text-start px-3">
+                                <i class="bi bi-currency-dollar me-2"></i> Manage Price Types
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-outline-secondary w-100 py-3 text-start px-3" @onclick="LoadStats">
+                                <i class="bi bi-arrow-clockwise me-2"></i> Refresh Stats
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private DashboardStatsViewModel? stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+    }
+
+    private async Task LoadStats()
+    {
+        stats = await AuthService.GetDashboardStatsAsync();
+    }
+}
+
+<style>
+    .card {
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+    }
+</style>
