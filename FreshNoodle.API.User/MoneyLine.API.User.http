@@ -1,0 +1,6 @@
+@MoneyLine.API.User_HostAddress = http://localhost:5001
+
+GET {{MoneyLine.API.User_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
