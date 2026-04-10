@@ -1,0 +1,45 @@
+name: Deploy Product API to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'FreshNoodle.API.Product/**'
+      - 'FreshNoodle.Core/**'
+      - 'FreshNoodle.Infrastructure/**'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  PROJECT_PATH: 'FreshNoodle.API.Product/FreshNoodle.API.Product.csproj'
+  AZURE_APP_NAME: 'freshnoodle-product-api' # TODO: Replace with your actual Azure App Service name
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+
+      - name: Build
+        run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --no-build --output ./publish/product-api
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_PRODUCT_API_PUBLISH_PROFILE }}
+          package: ./publish/product-api
