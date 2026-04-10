@@ -51,23 +51,16 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Configure CORS for Blazor client
+// Configure CORS for Blazor client, Azure-hosted UI, and mobile apps
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-                "https://localhost:5001",
-                "http://localhost:5000",
-                "https://localhost:5173",
-                "http://localhost:5173",
-                "https://localhost:7285",
-                "http://localhost:5050",
-                "http://localhost:55741",
-                "https://localhost:44336")
+        policy.AllowAnyOrigin() // Allows Azure App Services, Static Web Apps, and mobile clients
               .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowAnyMethod();
+        // Note: AllowCredentials() is intentionally omitted — it is incompatible with AllowAnyOrigin().
+        // JWT tokens are sent via the Authorization header, so credentials are not needed.
     });
 });
 
